@@ -566,6 +566,7 @@ class BridgeAppService(AppService):
                     {
                         "type": "m.login.application_service",
                         "username": self.registration["sender_localpart"],
+                        "inhibit_login": True,
                     },
                 )
                 logging.debug("Appservice user registration succeeded.")
