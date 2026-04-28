@@ -884,8 +884,7 @@ class PrivateRoom(Room):
                     await self.commands.trigger(match.group(2))
                 except CommandParserError as e:
                     self.send_notice(str(e))
-                finally:
-                    return
+                return
 
             await self._send_message(event, self.network.conn.privmsg)
 
