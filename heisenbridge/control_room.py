@@ -66,6 +66,7 @@ class ControlRoom(Room):
             group = cmd.add_mutually_exclusive_group()
             group.add_argument("--enable", help="Enable use of hidden room", action="store_true")
             group.add_argument("--disable", help="Disable use of hidden room", action="store_true")
+            group.add_argument("--purge", help="Delete and re-create the hidden room to reset its history", action="store_true")
             self.commands.register(cmd, self.cmd_hidden_room)
 
             cmd = CommandParser(
@@ -277,6 +278,17 @@ class ControlRoom(Room):
         elif args.disable:
             self.serv.config["use_hidden_room"] = False
             await self.serv.save()
+        elif args.purge:
+            try:
+                self.send_notice("Creating new hidden room and re-attaching rooms...")
+                old_id, new_id = await self.serv.purge_hidden_room()
+                self.send_notice("Hidden room has been purged and re-created.")
+                self.send_notice(f"Old hidden room ID: {old_id}")
+                self.send_notice(f"New hidden room ID: {new_id}")
+                self.send_notice("Leaving old hidden room in the background, this may take a while.")
+            except Exception as e:
+                self.send_notice(f"Failed to purge hidden room: {e}")
+            return
 
         try:
             is_enabled = await self.serv.ensure_hidden_room()

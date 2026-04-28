@@ -497,12 +497,30 @@ class BridgeAppService(AppService):
             await self.leave_room(self.hidden_room.id, joined.keys())
             self.hidden_room = None
 
-            for room in self._rooms.values():
-                if room.hidden_room_id:
-                    # Re-Run post init if room has a hidden room set
-                    await room.post_init()
+        for room in self._rooms.values():
+            if room.hidden_room_id:
+                # Re-Run post init if room has a hidden room set
+                await room.post_init()
 
         return use_hidden_room
+
+    async def purge_hidden_room(self):
+        old_room = self.hidden_room
+        if not old_room:
+            raise Exception("No hidden room is currently active.")
+
+        self.hidden_room = None
+        await self.ensure_hidden_room()
+
+        async def _cleanup_old():
+            old_joined = await self.az.state_store.get_member_profiles(old_room.id, (Membership.JOIN,))
+            self.unregister_room(old_room.id)
+            await self.leave_room(old_room.id, old_joined.keys())
+            logging.info(f"Finished leaving old hidden room {old_room.id}.")
+
+        asyncio.create_task(_cleanup_old())
+
+        return (old_room.id, self.hidden_room.id if self.hidden_room else None)
 
     async def run(self, listen_address, listen_port, homeserver_url, owner, safe_mode, media_proxy):
         if "sender_localpart" not in self.registration:
