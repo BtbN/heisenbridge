@@ -454,15 +454,19 @@ class BridgeAppService(AppService):
                     await self.az.intent.user(member).leave_room(room_id)
                 except Exception:
                     logging.exception("Removing puppet on leave failed")
+                try:
+                    await self.az.intent.user(member).forget_room(room_id)
+                except Exception:
+                    logging.exception("Forgetting puppet on leave failed")
 
         try:
             await self.az.intent.leave_room(room_id)
         except MatrixRequestError:
-            pass
+            logging.exception("Leaving room failed")
         try:
             await self.az.intent.forget_room(room_id)
         except MatrixRequestError:
-            pass
+            logging.exception("Forgetting room failed")
 
     def _keepalive(self):
         async def put_presence():
