@@ -16,6 +16,7 @@ from mautrix.api import Method
 from mautrix.api import SynapseAdminPath
 from mautrix.errors import MatrixStandardRequestError
 from mautrix.types import MessageEvent
+from mautrix.types import Membership
 from mautrix.types import TextMessageEventContent
 from mautrix.types.event.state import JoinRestriction
 from mautrix.types.event.state import JoinRestrictionType
@@ -419,6 +420,13 @@ class PrivateRoom(Room):
         cmd.add_argument("--disable", dest="enabled", action="store_false", help="Only prefix first line")
         cmd.set_defaults(enabled=None)
         self.commands.register(cmd, self.cmd_prefix_all)
+
+        cmd = CommandParser(
+            prog="PURGE",
+            description="delete and re-create this room to reset its history",
+            epilog="All existing Matrix history will be discarded.",
+        )
+        self.commands.register(cmd, self.cmd_purge)
 
         self.mx_register("m.room.message", self.on_mx_message)
         self.mx_register("m.room.redaction", self.on_mx_redaction)
@@ -908,6 +916,22 @@ class PrivateRoom(Room):
                         + f"for redacted event {event.redacts} in room {self.name} is left available."
                     )
                 return
+
+    async def cmd_purge(self, args) -> None:
+        old_id = self.id
+        self.network.send_notice(f"{self.name}: Purging and re-creating room. Old room ID was {old_id}")
+        self.serv.unregister_room(old_id)
+        self._queue.stop()
+        self.id = None
+        await self._create_mx(self.name)
+        await self.az.intent.kick_user(old_id, self.user_id, reason="Room is being purged and re-created.")
+        self.network.send_notice(f"{self.name}: Room has been re-created. Old room ID was {old_id}, new room ID is {self.id}")
+
+        async def _cleanup_old():
+            joined = await self.az.state_store.get_member_profiles(old_id, (Membership.JOIN,))
+            await self.serv.leave_room(old_id, joined.keys())
+
+        asyncio.create_task(_cleanup_old())
 
     @connected
     async def cmd_whois(self, args) -> None:
